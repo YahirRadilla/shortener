@@ -1,104 +1,90 @@
-import express, { Request, Response } from "express"
-import fs from "fs"
-import type { User } from "./models/user"
-import { authMiddleware } from "./middleware/auth"
-import { tokenMiddleware } from "./middleware/token"
+import 'reflect-metadata'
+import express from 'express'
+import { AppDataSource } from './data-source'
+
+//services
+import { registerUser } from './services/user/registerUser'
+import { loginUser } from './services/user/loginUser'
+import { verifyUser } from './services/user/verifyUser'
+import { createUrl } from './services/url/createUrl'
+import { deactivateUrl } from './services/url/deactivateUrl'
+import { activateUrl } from './services/url/activateUrl'
+import { redirectUrl } from './controllers/url/redirectUrl'
 
 const app = express()
-
-const usersData = require("./data/users.json")
-
 app.use(express.json())
 
-app.use(authMiddleware)
-app.use(tokenMiddleware)
+//USER
 
-
-
-app.get("/users", (req: Request, res: Response) => {
-    res.json(usersData.users)
-})
-
-
-
-app.get("/users/:email", (req: Request, res: Response) => {
-
-    const email = req.params.email
-
-    const user = usersData.users.find((u: User) => u.email === email)
-
-    if (!user) {
-        return res.status(404).json({ message: "User not found" })
+app.post('/register', async (req, res) => {
+    try {
+        const result = await registerUser(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
     }
-
-    res.json(user)
 })
 
-
-
-app.post("/users", (req: Request, res: Response) => {
-
-    const newUser: User = req.body
-
-    usersData.users.push(newUser)
-
-    fs.writeFileSync(
-        "./src/data/users.json",
-        JSON.stringify(usersData, null, 2)
-    )
-
-    res.status(201).json(newUser)
-})
-
-
-
-app.put("/users/:email", (req: Request, res: Response) => {
-
-    const email = req.params.email
-
-    const index = usersData.users.findIndex((u: User) => u.email === email)
-
-    if (index === -1) {
-        return res.status(404).json({ message: "User not found" })
+app.post('/login', async (req, res) => {
+    try {
+        const result = await loginUser(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
     }
+})
 
-    const updatedUser: User = {
-        ...usersData.users[index],
-        ...req.body
+app.post('/verify', async (req, res) => {
+    try {
+        const result = await verifyUser(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
     }
-
-    usersData.users[index] = updatedUser
-
-    fs.writeFileSync(
-        "./src/data/users.json",
-        JSON.stringify(usersData, null, 2)
-    )
-
-    res.json(updatedUser)
 })
 
+//URL ROUTES
 
-
-app.delete("/users/:email", (req: Request, res: Response) => {
-
-    const email = req.params.email
-
-    const user = usersData.users.find((u: User) => u.email === email)
-
-    if (!user) {
-        return res.status(404).json({ message: "User not found" })
+app.post('/url', async (req, res) => {
+    try {
+        const result = await createUrl(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
     }
-
-    usersData.users = usersData.users.filter((u: User) => u.email !== email)
-
-    fs.writeFileSync(
-        "./src/data/users.json",
-        JSON.stringify(usersData, null, 2)
-    )
-
-    res.json({ message: "User deleted" })
 })
 
-app.listen(3000, () => {
-    console.log("Server running on port 3000")
+app.patch('/url/deactivate', async (req, res) => {
+    try {
+        const result = await deactivateUrl(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
+    }
 })
+
+app.patch('/url/activate', async (req, res) => {
+    try {
+        const result = await activateUrl(req.body)
+        res.status(200).json(result)
+    } catch (error: any) {
+        res.status(400).json({ message: error.message })
+    }
+})
+
+//REDIRECT IMPORTANTE
+app.get('/url/:shortUrl', redirectUrl)
+
+// INICIALIZAR DB + SERVER
+
+AppDataSource.initialize()
+    .then(() => {
+        console.log('DB conectada')
+
+        app.listen(3000, () => {
+            console.log('Server corriendo en http://localhost:3000')
+        })
+    })
+    .catch((error) => {
+        console.error('Error al conectar DB:', error)
+    })
